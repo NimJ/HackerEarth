@@ -14,7 +14,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 from scipy import sparse
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 
 
 # start time of program         
@@ -137,21 +137,25 @@ if __name__ == '__main__':
 
     
     train_text = tfidf.fit_transform(train_text)
-    test_text = tfidf.fit_transform(test_text)
+    test_text = tfidf.transform(test_text)
     clf = GradientBoostingClassifier(n_estimators=500, verbose = 1)
 
-    clf.fit(train, y)
-	
-    pred = clf.predict(test)
-	
+    X_train = sparse.hstack((train_text,train),format='csr')
+    X_test = sparse.hstack((test_text,test),format='csr')
+    
+    from sklearn.decomposition import TruncatedSVD
+    svd =  TruncatedSVD(n_components = 120)
+    X_train1 = svd.fit_transform(X_train)
+    X_test1 = svd.transform(X_test)
+    
+    clf.fit(X_train1, y)
+    pred = clf.predict(X_test1)
+    
     sample  = pd.read_csv('%s/samplesubmission.csv' % base_dir)
     sample.final_status = pred    	
-    sample.to_csv('%s/submission1.csv' % base_dir, index=False)
+    sample.to_csv('%s/submission3.csv' % base_dir, index=False)
 
     
-    from sklearn.decomposition import PCA
-    pca =  PCA(n_components = 12)
-    pca.fit()
     # Model Persistance
     
     import pickle
