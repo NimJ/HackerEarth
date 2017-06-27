@@ -10,13 +10,12 @@ import pandas as pd
 import numpy as np
 import re
 import time
-import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 from scipy import sparse
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import GradientBoostingClassifier
-import xgboost as xgb
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+
 
 
 # start time of program         
@@ -86,12 +85,16 @@ if __name__ == '__main__':
     train['duration_from_launch'] = train['deadline'] - train['launched_at']
     train['state_change_from_create'] = train['state_changed_at'] - train['created_at']
     train['state_change_from_launch'] = train['state_changed_at'] - train['launched_at']
+    train['deadline_met'] = train['deadline'] == train['state_changed_at']
+    train['deadline_met']  = np.where(train['deadline_met']==False,0,1)
     train = train.drop(['deadline','created_at','state_changed_at','launched_at'],axis = 1)
     
     test['duration_from_create'] = test['deadline'] - test['created_at']
     test['duration_from_launch'] = test['deadline'] - test['launched_at']
     test['state_change_from_create'] = test['state_changed_at'] - test['created_at']
     test['state_change_from_launch'] = test['state_changed_at'] - test['launched_at']
+    test['deadline_met'] = test['deadline'] == test['state_changed_at']
+    test['deadline_met']  = np.where(test['deadline_met']==False,0,1)        
     test = test.drop(['deadline','created_at','state_changed_at','launched_at'],axis = 1)
     
     #scaling
@@ -112,14 +115,16 @@ if __name__ == '__main__':
     test['state_change_from_launch'] = scaler.transform(test['state_change_from_launch'])
     
     #combine text columns
-    train_text = train.apply(lambda x : '%s %s %s' %(x['name'],x['desc'],x['keywords']),axis = 1)
-    test_text = test.apply(lambda x : '%s %s %s' %(x['name'],x['desc'],x['keywords']),axis = 1)
+    train_text = train.apply(lambda x : '%s %s' %(x['desc'],x['keywords']),axis = 1)
+    test_text = test.apply(lambda x : '%s %s' %(x['desc'],x['keywords']),axis = 1)
                                         
     train = train.drop(['name','desc','keywords'],axis = 1)
     test = test.drop(['name','desc','keywords'],axis = 1)
     
+    
     #dummies for country and currency
     train,test = get_dummies(train,test)                                    
+    
                                     
     #preprocess text data                       
     train_text = train_text.apply(lambda x : preprocessor(x))                                
@@ -140,41 +145,22 @@ if __name__ == '__main__':
     
     train_text = tfidf.fit_transform(train_text)
     test_text = tfidf.transform(test_text)
-#   
-    
+    clf = GradientBoostingClassifier(n_estimators=500, verbose = 1)
+
     X_train = sparse.hstack((train_text,train),format='csr')
     X_test = sparse.hstack((test_text,test),format='csr')
     
-#    #presisting combined feature data
-#    pickle.dump(X_train,open('%s/X_train.dat' %base_dir,'wb'))
-#    pickle.dump(X_test,open('%s/X_test.dat' %base_dir,'wb'))
-#    
-    #relaoding combined features
-    X_train = pickle.load(open('%s/X_train.dat' %base_dir,"rb"),encoding='latin1')
-    X_test = pickle.load(open('%s/X_test.dat' %base_dir,"rb"),encoding='latin1')
-    
-#    clf = GradientBoostingClassifier(n_estimators=500, verbose = 1)
-    
-    clf = xgb.XGBClassifier(n_estimators=1500, 
-                            nthread=-1, 
-                            max_depth=17,
-                            learning_rate=0.01, 
-                            silent=False, 
-                            subsample=0.8, 
-                            colsample_bytree=0.7)
-    
-    
     from sklearn.decomposition import TruncatedSVD
     svd =  TruncatedSVD(n_components = 120)
-    X_train = svd.fit_transform(X_train)
-    X_test = svd.transform(X_test)
+    X_train1 = svd.fit_transform(X_train)
+    X_test1 = svd.transform(X_test)
     
-    clf.fit(X_train, y)
-    pred = clf.predict(X_test)
+    clf.fit(X_train1, y)
+    pred = clf.predict(X_test1)
     
     sample  = pd.read_csv('%s/samplesubmission.csv' % base_dir)
     sample.final_status = pred    	
-    sample.to_csv('%s/submission4.csv' % base_dir, index=False)
+    sample.to_csv('%s/submission19.csv' % base_dir, index=False)
 
     
     # Model Persistance
@@ -182,5 +168,5 @@ if __name__ == '__main__':
     import pickle
     pickle.dump(clf,open('%s/classifier.pkl' %base_dir,'wb'),protocol=1)   
     
-    print 'total time : %.2F Minutes' %((time.time()-start)/60) 
+    print ('total time : %.2F Minutes' %((time.time()-start)/60))
     

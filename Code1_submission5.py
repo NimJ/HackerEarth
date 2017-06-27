@@ -135,15 +135,14 @@ if __name__ == '__main__':
          
     tfidf = TfidfVectorizer(stop_words = 'english',token_pattern = r'\w{1,}',
                             strip_accents=None,
-                            lowercase = False,preprocessor = None)
+                            lowercase = False,preprocessor = None,max_features = 650)
 
     
-    train_text = tfidf.fit_transform(train_text)
-    test_text = tfidf.transform(test_text)
-#   
+    train_text = tfidf.fit_transform(train_text).todense()
+    test_text = tfidf.transform(test_text).todense()  
     
-    X_train = sparse.hstack((train_text,train),format='csr')
-    X_test = sparse.hstack((test_text,test),format='csr')
+    X_train = np.hstack((train_text,train))
+    X_test = np.hstack((test_text,test))
     
 #    #presisting combined feature data
 #    pickle.dump(X_train,open('%s/X_train.dat' %base_dir,'wb'))
@@ -155,32 +154,34 @@ if __name__ == '__main__':
     
 #    clf = GradientBoostingClassifier(n_estimators=500, verbose = 1)
     
-    clf = xgb.XGBClassifier(n_estimators=1500, 
-                            nthread=-1, 
-                            max_depth=17,
-                            learning_rate=0.01, 
-                            silent=False, 
-                            subsample=0.8, 
-                            colsample_bytree=0.7)
+    params = {
+    'objective':'binary:logistic',
+    'eval_metric':'error',
+    'eta':0.025,
+    'max_depth':6,
+    'subsample':0.7,
+    'colsample_bytree':0.7,
+    'min_child_weight':5
+    }
     
+    dtrain = xgb.DMatrix(data=X_train, label = y)
+    dtest = xgb.DMatrix(data=X_test)
+
+    bst = xgb.cv(params,dtrain,num_boost_round=1000,
+                 early_stopping_rounds=40,nfold=5,verbose_eval=10)
     
-    from sklearn.decomposition import TruncatedSVD
-    svd =  TruncatedSVD(n_components = 120)
-    X_train = svd.fit_transform(X_train)
-    X_test = svd.transform(X_test)
+    bst_train = xgb.train(params, dtrain, num_boost_round=10)
     
-    clf.fit(X_train, y)
-    pred = clf.predict(X_test)
-    
+    pred = bst_train.predict(dtest)
+            
     sample  = pd.read_csv('%s/samplesubmission.csv' % base_dir)
     sample.final_status = pred    	
-    sample.to_csv('%s/submission4.csv' % base_dir, index=False)
+    sample.to_csv('%s/submission5.csv' % base_dir, index=False)
 
-    
     # Model Persistance
     
     import pickle
     pickle.dump(clf,open('%s/classifier.pkl' %base_dir,'wb'),protocol=1)   
     
-    print 'total time : %.2F Minutes' %((time.time()-start)/60) 
+    print ('total time : %.2F Minutes' %((time.time()-start)/60))
     

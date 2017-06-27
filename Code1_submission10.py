@@ -10,13 +10,14 @@ import pandas as pd
 import numpy as np
 import re
 import time
-import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 from scipy import sparse
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import GradientBoostingClassifier
-import xgboost as xgb
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.ensemble import 
+import pickle
 
 
 # start time of program         
@@ -140,12 +141,11 @@ if __name__ == '__main__':
     
     train_text = tfidf.fit_transform(train_text)
     test_text = tfidf.transform(test_text)
-#   
     
     X_train = sparse.hstack((train_text,train),format='csr')
     X_test = sparse.hstack((test_text,test),format='csr')
     
-#    #presisting combined feature data
+    #    #presisting combined feature data
 #    pickle.dump(X_train,open('%s/X_train.dat' %base_dir,'wb'))
 #    pickle.dump(X_test,open('%s/X_test.dat' %base_dir,'wb'))
 #    
@@ -153,34 +153,26 @@ if __name__ == '__main__':
     X_train = pickle.load(open('%s/X_train.dat' %base_dir,"rb"),encoding='latin1')
     X_test = pickle.load(open('%s/X_test.dat' %base_dir,"rb"),encoding='latin1')
     
-#    clf = GradientBoostingClassifier(n_estimators=500, verbose = 1)
-    
-    clf = xgb.XGBClassifier(n_estimators=1500, 
-                            nthread=-1, 
-                            max_depth=17,
-                            learning_rate=0.01, 
-                            silent=False, 
-                            subsample=0.8, 
-                            colsample_bytree=0.7)
-    
     
     from sklearn.decomposition import TruncatedSVD
-    svd =  TruncatedSVD(n_components = 120)
+    svd =  TruncatedSVD(n_components = 180)
     X_train = svd.fit_transform(X_train)
     X_test = svd.transform(X_test)
     
+    
+    clf = ExtraTreesClassifier(n_estimators=500, verbose = 1)
     clf.fit(X_train, y)
     pred = clf.predict(X_test)
     
     sample  = pd.read_csv('%s/samplesubmission.csv' % base_dir)
     sample.final_status = pred    	
-    sample.to_csv('%s/submission4.csv' % base_dir, index=False)
+    sample.to_csv('%s/submission8.csv' % base_dir, index=False)
 
+    
+    print ('total time : %.2F Minutes' %((time.time()-start)/60) )
     
     # Model Persistance
     
-    import pickle
-    pickle.dump(clf,open('%s/classifier.pkl' %base_dir,'wb'),protocol=1)   
-    
-    print 'total time : %.2F Minutes' %((time.time()-start)/60) 
-    
+#    import pickle
+#    pickle.dump(clf,open('%s/classifier.pkl' %base_dir,'wb'),protocol=1)   
+#    
